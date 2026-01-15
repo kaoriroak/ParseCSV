@@ -2,28 +2,10 @@ import streamlit as st
 import pandas as pd
 import io
 
-# --- 1. 設定：合言葉（パスワード）をここで決めてください ---
-PASSWORD_REQUIRED = "your_password123" 
-
 # 画面の設定
-st.set_page_config(page_title="社内専用 住所変換ツール", layout="centered")
+st.set_page_config(page_title="住所・電話番号変換ツール", layout="centered")
 
-# --- 2. パスワード認証機能 ---
-if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = False
-
-if not st.session_state["authenticated"]:
-    st.title("🔐 セキュリティ認証")
-    user_input = st.text_input("合言葉を入力してください", type="password")
-    if st.button("ログイン"):
-        if user_input == PASSWORD_REQUIRED:
-            st.session_state["authenticated"] = True
-            st.rerun()
-        else:
-            st.error("合言葉が正しくありません。")
-    st.stop() 
-
-# --- 3. メイン機能 ---
+# --- メイン機能 ---
 st.title("📦 住所・電話番号変換ツール")
 st.info("CSVをアップロードすると、指定品番の抽出と、住所・電話番号の整形を自動で行います。")
 
@@ -40,7 +22,7 @@ if uploaded_file:
     df = None
     for enc in ['shift_jis', 'utf-8-sig', 'cp932']:
         try:
-            # 郵便番号と電話番号の各パーツを最初から「文字列」として読み込む（0落ち防止）
+            # 郵便番号と電話番号の各パーツを文字列として読み込む（0落ち防止）
             df = pd.read_csv(
                 io.BytesIO(content), 
                 encoding=enc, 
@@ -65,7 +47,7 @@ if uploaded_file:
                 # --- 郵便番号の整形 ---
                 z1 = str(row.get('送付先郵便番号1', '')).strip().split('.')[0].zfill(3)
                 z2 = str(row.get('送付先郵便番号2', '')).strip().split('.')[0].zfill(4)
-                zip_code = f"〒{z1}-{z2}" if (z1 != 'nan' and z2 != 'nan') else ""
+                zip_code = f"〒{z1}-{z2}" if (z1 != 'nan' and z2 != 'nan' and z1 != '000') else ""
 
                 # --- 住所の整形 ---
                 pref = str(row.get('送付先住所都道府県', '')).replace('nan', '')
@@ -81,26 +63,14 @@ if uploaded_file:
                 if t1 and t2 and t3:
                     phone_number = f"{t1}-{t2}-{t3}"
                 else:
-                    phone_number = (t1 + t2 + t3).strip() # どれか欠けている場合はそのまま結合
+                    phone_number = (t1 + t2 + t3).strip()
 
                 # --- 宛名の整形 ---
                 ln = str(row.get('送付先姓', '')).replace('nan', '').strip()
                 fn = str(row.get('送付先名', '')).replace('nan', '').strip()
-                name = f"{ln} {fn} 様" if (ln and fn) else "データ確認が必要"
+                name = f"{ln} {fn} 様" if (ln and fn) else f"{ln}{fn} 様"
 
                 processed_data.append([zip_code, addr1, addr2, phone_number, name])
 
             # 結果の表示とダウンロード
-            result_df = pd.DataFrame(processed_data, columns=["郵便番号", "住所1", "住所2", "電話番号", "宛名"])
-            st.success(f"{len(result_df)}件のデータを抽出・整形しました。")
-            st.dataframe(result_df)
-
-            csv_output = result_df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
-            st.download_button(
-                label="変換済みCSVをダウンロード",
-                data=csv_output,
-                file_name="converted_shipping_list.csv",
-                mime="text/csv"
-            )
-    else:
-        st.error("ファイルの読み込みに失敗しました。")
+            result_df = pd.DataFrame(processed_data, columns=["郵便番号", "住所1", "住所2", "
