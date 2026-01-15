@@ -22,13 +22,17 @@ if uploaded_file:
     df = None
     for enc in ['shift_jis', 'utf-8-sig', 'cp932']:
         try:
-            # 郵便番号と電話番号の各パーツを文字列として読み込む（0落ち防止）
+            # 読み込み時に全パーツを「str（文字列）」に指定して0落ちを物理的に防ぐ
             df = pd.read_csv(
                 io.BytesIO(content), 
                 encoding=enc, 
                 dtype={
-                    '送付先郵便番号1': str, '送付先郵便番号2': str,
-                    '送付先電話番号1': str, '送付先電話番号2': str, '送付先電話番号3': str
+                    '送付先郵便番号1': str, 
+                    '送付先郵便番号2': str,
+                    '送付先電話番号1': str, 
+                    '送付先電話番号2': str, 
+                    '送付先電話番号3': str,
+                    'SKU管理番号': str
                 }
             )
             break
@@ -36,7 +40,8 @@ if uploaded_file:
             continue
 
     if df is not None:
-        df['SKU管理番号'] = df['SKU管理番号'].astype(str).str.strip()
+        # SKUの前後空白を削除
+        df['SKU管理番号'] = df['SKU管理番号'].fillna('').str.strip()
         df_filtered = df[df['SKU管理番号'].isin(TARGET_SKUS)].copy()
 
         if df_filtered.empty:
@@ -55,11 +60,19 @@ if uploaded_file:
                 addr1 = (pref + city).strip()
                 addr2 = str(row.get('送付先住所それ以降の住所', '')).replace('nan', '').strip()
 
-                # --- 電話番号の整形（1-2-3をハイフンで結合） ---
-                t1 = str(row.get('送付先電話番号1', '')).strip().split('.')[0].replace('nan', '')
-                t2 = str(row.get('送付先電話番号2', '')).strip().split('.')[0].replace('nan', '')
-                t3 = str(row.get('送付先電話番号3', '')).strip().split('.')[0].replace('nan', '')
+                # --- 電話番号の整形（0落ち対策を強化） ---
+                def format_phone_part(val):
+                    s = str(val).strip().split('.')[0].replace('nan', '')
+                    return s
+
+                t1 = format_phone_part(row.get('送付先電話番号1', ''))
+                t2 = format_phone_part(row.get('送付先電話番号2', ''))
+                t3 = format_phone_part(row.get('送付先電話番号3', ''))
                 
+                # 電話番号1の先頭が0で始まっておらず、かつ空でない場合、0を補完する（090が90になっているケース等）
+                if t1 and not t1.startswith('0'):
+                    t1 = '0' + t1
+
                 if t1 and t2 and t3:
                     phone_number = f"{t1}-{t2}-{t3}"
                 else:
@@ -77,6 +90,7 @@ if uploaded_file:
             st.success(f"{len(result_df)}件のデータを抽出・整形しました。")
             st.dataframe(result_df)
 
+            # CSV出力時も0が消えないように設定
             csv_output = result_df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
             st.download_button(
                 label="変換済みCSVをダウンロード",
