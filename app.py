@@ -73,4 +73,16 @@ if uploaded_file:
                 processed_data.append([zip_code, addr1, addr2, phone_number, name])
 
             # 結果の表示とダウンロード
-            result_df = pd.DataFrame(processed_data, columns=["郵便番号", "住所1", "住所2", "
+            result_df = pd.DataFrame(processed_data, columns=["郵便番号", "住所1", "住所2", "電話番号", "宛名"])
+            st.success(f"{len(result_df)}件のデータを抽出・整形しました。")
+            st.dataframe(result_df)
+
+            csv_output = result_df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
+            st.download_button(
+                label="変換済みCSVをダウンロード",
+                data=csv_output,
+                file_name="converted_shipping_list.csv",
+                mime="text/csv"
+            )
+    else:
+        st.error("ファイルの読み込みに失敗しました。")
