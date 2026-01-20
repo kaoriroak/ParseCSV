@@ -2,17 +2,18 @@ import streamlit as st
 import pandas as pd
 import io
 
-# 画面の設定
-st.set_page_config(page_title="住所・電話番号変換ツール", layout="centered")
+# 1. ブラウザのタブ名を設定
+st.set_page_config(page_title="出荷データ抽出・整形ツール", layout="centered")
 
-# --- メイン機能 ---
-st.title("📦 住所・電話番号変換ツール")
+# --- 2. 画面上のメインタイトル ---
+st.title("🚀 出荷データ抽出・整形ツール")
 st.info("CSVをアップロードすると、指定品番の抽出と、住所・電話番号の整形を自動で行います。")
 
-# 抽出対象の品番（SKU管理番号）
+# --- 3. 抽出対象の品番（SKU管理番号）リスト ---
 TARGET_SKUS = [
     'mod2', 'mod3', 'mod4', 'ca-10', 'z-01', 'z-03', 
-    'lb-4', 'kr--2', 'kr-03', 'bkye-c001', 'bkye-c002'
+    'lb-4', 'kr--2', 'kr-03', 'bkye-c001', 'bkye-c002',
+    'z-set', 'mod-set', 'li45', 'li345', 'li34', 'lbkr', 'bkye-set' # 追加分
 ]
 
 uploaded_file = st.file_uploader("CSVファイルを選択してください", type='csv')
@@ -22,7 +23,7 @@ if uploaded_file:
     df = None
     for enc in ['shift_jis', 'utf-8-sig', 'cp932']:
         try:
-            # 読み込み時に全パーツを「str（文字列）」に指定して0落ちを物理的に防ぐ
+            # 読み込み時に全パーツを文字列として読み込み（0落ち防止）
             df = pd.read_csv(
                 io.BytesIO(content), 
                 encoding=enc, 
@@ -40,8 +41,8 @@ if uploaded_file:
             continue
 
     if df is not None:
-        # SKUの前後空白を削除
-        df['SKU管理番号'] = df['SKU管理番号'].fillna('').str.strip()
+        # SKUの前後空白を削除して判定
+        df['SKU管理番号'] = df['SKU管理番号'].fillna('').astype(str).str.strip()
         df_filtered = df[df['SKU管理番号'].isin(TARGET_SKUS)].copy()
 
         if df_filtered.empty:
@@ -69,7 +70,7 @@ if uploaded_file:
                 t2 = format_phone_part(row.get('送付先電話番号2', ''))
                 t3 = format_phone_part(row.get('送付先電話番号3', ''))
                 
-                # 電話番号1の先頭が0で始まっておらず、かつ空でない場合、0を補完する（090が90になっているケース等）
+                # 先頭の0落ち補完
                 if t1 and not t1.startswith('0'):
                     t1 = '0' + t1
 
@@ -90,7 +91,6 @@ if uploaded_file:
             st.success(f"{len(result_df)}件のデータを抽出・整形しました。")
             st.dataframe(result_df)
 
-            # CSV出力時も0が消えないように設定
             csv_output = result_df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
             st.download_button(
                 label="変換済みCSVをダウンロード",
